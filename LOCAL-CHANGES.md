@@ -34,6 +34,14 @@ All changes were checked against the real notebooks by converting them from the 
   - Read-only files and paths over 260 characters are handled.
   - The default is `1` (keep previous output), which is the old behaviour.
 
+- **`keepescape = 4`**: keeps a `\` only where it changes the rendering (`Repair-MarkdownEscapes`). Default behaviour (`1`) is unchanged.
+  - Pandoc escapes paragraphs that only look like lists. OneNote pages often start lines with a literal `- ` or `7.` (no real list: the `.docx` has no list numbering), which came out as `\- item` and `7\. item`. These become real lists again (`- item`, `7. item`), blank lines between the items are removed, and lone `-` lines (empty bullets, or an accidental heading underline) are dropped.
+  - A `\` at the end of a line (Pandoc's hard break) becomes two trailing spaces, or is dropped at the end of a paragraph.
+  - Escapes that cannot change the rendering (`\>` in `--\>`, `\_` in `snake\_case`, `\.`, `\-` in the middle of a line) are removed. Kept: escapes at the start of a line, `\[`, `\]`, `\*` pairs, `\\`, Windows and UNC paths.
+  - Code fences and inline code are never touched.
+  - Port of `fix_lists` and `escapes` from `markdown_cleaner/qon_helper.py`, extended for what real OneNote exports showed: lists inside block quotes (`> 1. item`; `keepspaces` removes the `>` only later), non-breaking spaces after the marker, and several blank or nbsp-only lines between items.
+  - Checked with a real run of the script against OneNote (notebook with 197 pages, `keepescape` 3 vs 4, same `.docx`): escaped bullets 503 to 0, blank lines between list items 45 to 0, line-end backslashes 1039 to 0, lone dash lines 25 to 0, escaped numbers 87 to 0. `\>` 316 to 25, `\*` 366 to 330 and `\_` 9 to 9 remain on purpose (they sit at line starts or pair up). Letters and digits are identical on all 197 pages, so no text was lost.
+
 ### Not changed, for the record
 
 - **Wrong-looking Created/Modified times:** on some pages "Modified" is 1 to 2 hours *before* "Created". That's OneNote's own data, not a conversion error: those pages (probably created by the web clipper) store local time labelled as UTC in `dateTime`. The script converts correctly.
@@ -64,7 +72,7 @@ If upstream merges the PRs, this copy can be replaced by upstream's version (kee
 
 In `config.ps1`:
 
-- `$keepescape = 3`: keep all backslashes. The default `1` also deletes the ones in Windows paths (`C:\Program Files` → `C:Program Files`), and `2` turns escaped `\*` and `\<placeholder\>` back into formatting and hidden HTML.
+- `$keepescape = 4` (new, see above) keeps only the backslashes that matter. Before that: `3` keeps all backslashes, but leaves `\- item`, `7\. item` and `\` line ends in the output. The default `1` also deletes the ones in Windows paths (`C:\Program Files` → `C:Program Files`), and `2` turns escaped `\*` and `\<placeholder\>` back into formatting and hidden HTML.
 - `$conversion = 'markdown-simple_tables-multiline_tables-grid_tables+pipe_tables-smart'`: `-smart` stops Pandoc from escaping every quote (`\"`). Don't add `-link_attributes` or `-bracketed_spans`: Pandoc then writes raw `<img style=...>` and `<span>` HTML instead.
 - `$overwrite = 2` when re-exporting into an existing folder.
 
@@ -81,4 +89,4 @@ In `config.ps1`:
   ```
 
   Don't set `$ErrorActionPreference = 'Stop'` for the run: several tests expect non-terminating errors.
-- **Test status:** 92 unit tests. The only failure, "Throw if -Length is greater than 255", depends on the system language: it expects the English .NET error message and fails on a German Windows, with or without these changes.
+- **Test status:** 114 unit tests (22 of them new for `keepescape = 4`). The only failure, "Throw if -Length is greater than 255", depends on the system language: it expects the English .NET error message and fails on a German Windows, with or without these changes.

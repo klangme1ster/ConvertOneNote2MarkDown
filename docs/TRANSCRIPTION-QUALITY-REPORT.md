@@ -79,3 +79,14 @@ Also worth checking in the converter:
 - Default behaviour stays the same unless the user picks the new mode (it changes rendering for pages that
   start lines with "- ").
 - Record the change in `LOCAL-CHANGES.md`.
+
+## Addendum 2026-11-01: verification and result
+
+Checked with Pandoc 3.11 on the `.docx` of `JIRA-Prozess-Wiki` (kept in `c:\temp\notes\<notebook>\docx`) and on all 197 `.docx` of the notebook:
+
+- The `.docx` has no list numbering (`w:numPr` count 0, all paragraphs style `StandardWeb`). The `\-` and `7\.` are therefore literal text typed in OneNote; Pandoc is faithful and escapes it. This confirms cause 2.
+- `-escaped_line_breaks` in `$conversion` does turn the line-end `\` into two trailing spaces (confirmed). Not needed any more with `keepescape = 4`.
+- The one-cell `Tags` table is part of the OneNote content (it is in the Pandoc output of the `.docx`); the script does not produce it.
+- Implemented as `keepescape = 4` (`Repair-MarkdownEscapes`, Pester tests added). First version was identical to `qon_helper.escapes(fix_lists(...))` on all 197 `.docx` pages. A real run against OneNote then showed three gaps, now fixed: lists inside block quotes (`> 1\. item`), non-breaking spaces after the marker, and several blank or nbsp-only lines between items.
+- Real run (script + OneNote, same notebook, `keepescape` 3 vs 4, 197 pages, no errors), scan counts before/after: escaped bullets 503 to 0, blank lines between list items 45 to 0, line-end backslashes 1039 to 0, lone dash lines 25 to 0, escaped numbers 87 to 0, `\>` 316 to 25, `\*` 366 to 330, `\_` 9 to 9 (the rest is kept on purpose). Letters and digits are identical on every page.
+- Not yet done: re-export into the real destination (`onenote2md`) and a look at the rendering in QOwnNotes; the `Tags` table is unchanged.
