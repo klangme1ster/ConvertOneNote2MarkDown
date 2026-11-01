@@ -3,7 +3,7 @@
 [![github-actions](https://github.com/theohbrothers/ConvertOneNote2MarkDown/actions/workflows/ci-master-pr.yml/badge.svg?branch=master)](https://github.com/theohbrothers/ConvertOneNote2MarkDown/actions/workflows/ci-master-pr.yml)
 [![github-release](https://img.shields.io/github/v/release/theohbrothers/ConvertOneNote2MarkDown?style=flat-square)](https://github.com/theohbrothers/ConvertOneNote2MarkDown/releases/)
 
-> **Local copy:** this copy has fixes and an extra `overwrite` option on top of upstream; see [LOCAL-CHANGES.md](LOCAL-CHANGES.md).
+> **This is a fork** of [theohbrothers/ConvertOneNote2MarkDown](https://github.com/theohbrothers/ConvertOneNote2MarkDown) with bug fixes (words glued together, missing page content, overwritten duplicate pages, broken links) and two new options: `overwrite` (remove a notebook's old output first) and `keepescape = 4` (repair lists and escapes that Pandoc writes as `\- item`, `7\. item`). See [FORK-CHANGES.md](FORK-CHANGES.md) for what changed, with examples and when you need it.
 
 Ready to make the step to Markdown and saying farewell to your OneNote, EverNote or whatever proprietary note taking tool you are using? Nothing beats clear text, right? Read on!
 
@@ -32,7 +32,7 @@ The powershell script `ConvertOneNote2MarkDown-v2.ps1` will utilize the OneNote 
   * `markdown_strict` (original unextended Markdown)
   * Improved headers, with title now as a `#` heading, standardized `DateTime` format for created and modified dates, and horizontal line to separate from rest of document
 * Choose whether to clear extra newlines between unordered (bullet) and ordered (numbered) list items, non-breaking spaces from blank lines and line ends (other non-breaking spaces become normal spaces), and `>` after unordered lists, which are created when converting with Pandoc
-* Choose whether to remove `\` escape symbol that are created when converting with Pandoc
+* Choose whether to remove `\` escape symbol that are created when converting with Pandoc. Mode `4` (`$keepescape = 4`) keeps only the escapes that matter and rebuilds lists that Pandoc escaped (`\- item`, `7\. item`); see [FORK-CHANGES.md](FORK-CHANGES.md#new-option-keepescape--4)
 * Choose whether to use Line Feed (`LF`) or Carriage Return + Line Feed (`CRLF`) for new lines
 * Choose whether to include a `.pdf` export alongside the `.md` file. `.md` does not preserve `InkDrawing` (i.e. overlayed drawings, highlights, pen marks) absolute positions within a page, but a `.pdf` export is a complete page snapshot that preserves `InkDrawing` absolute positions within a page.
 * Choose whether to **remove a notebook's previous output** before converting it (`$overwrite = 2`), so notes, folders and media that were renamed or deleted in OneNote since the last run don't linger. The notebook's `docx` folder is always kept, so existing `.docx` files can still be reused.

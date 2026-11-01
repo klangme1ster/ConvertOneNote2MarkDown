@@ -78,7 +78,7 @@ Also worth checking in the converter:
 - Existing Pester tests stay unchanged; new behaviour gets new tests.
 - Default behaviour stays the same unless the user picks the new mode (it changes rendering for pages that
   start lines with "- ").
-- Record the change in `LOCAL-CHANGES.md`.
+- Record the change in `FORK-CHANGES.md`.
 
 ## Addendum 2026-11-01: verification and result
 
