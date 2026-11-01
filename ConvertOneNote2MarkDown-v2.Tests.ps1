@@ -579,6 +579,75 @@ Describe "Repair-MarkdownEscapes" -Tag 'Unit' {
 
 }
 
+Describe "Add-MarkdownHardBreaks" -Tag 'Unit' {
+
+    Context 'Behavior' {
+
+        It "Should end every line that is followed by a line of the same paragraph with two spaces" {
+            Add-MarkdownHardBreaks -Content "one`ntwo`nthree`n`nnext`nline" | Should -BeExactly "one  `ntwo  `nthree`n`nnext  `nline"
+        }
+
+        It "Should turn pandoc's backslash line break into two spaces" {
+            Add-MarkdownHardBreaks -Content "one\`ntwo" | Should -BeExactly "one  `ntwo"
+            Add-MarkdownHardBreaks -Content "one \`ntwo" | Should -BeExactly "one   `ntwo"
+        }
+
+        It "Should treat a literal backslash (written as two) at the end of a line as text and still end the line with two spaces" {
+            Add-MarkdownHardBreaks -Content "C:\\dir\\`nnext" | Should -BeExactly "C:\\dir\\  `nnext"
+            Add-MarkdownHardBreaks -Content "one\\\`nnext" | Should -BeExactly "one\\  `nnext"
+        }
+
+        It "Should leave a backslash at the end of a paragraph to keepescape" {
+            Add-MarkdownHardBreaks -Content "one\`n`ntwo" | Should -BeExactly "one\`n`ntwo"
+        }
+
+        It "Should keep lines that already end with two spaces" {
+            Add-MarkdownHardBreaks -Content "one  `ntwo" | Should -BeExactly "one  `ntwo"
+        }
+
+        It "Should leave alone lines before a list item and the list items' own paragraph ends" {
+            Add-MarkdownHardBreaks -Content "text`n- item`n- item two" | Should -BeExactly "text`n- item`n- item two"
+            Add-MarkdownHardBreaks -Content "1. one`n2. two" | Should -BeExactly "1. one`n2. two"
+        }
+
+        It "Should leave headings, tables, rules and HTML alone (<Name>)" -TestCases @(
+            @{ Name = 'heading'; Content = "# Title`ntext" }
+            @{ Name = 'before heading'; Content = "text`n# Title" }
+            @{ Name = 'table'; Content = "| a | b |`n|---|---|`n| 1 | 2 |" }
+            @{ Name = 'rule'; Content = "text`n---`ntext" }
+            @{ Name = 'html'; Content = "<table>`n<tr>`n</table>" }
+        ) {
+            param ($Name, $Content)
+
+            Add-MarkdownHardBreaks -Content $Content | Should -BeExactly $Content
+        }
+
+        It "Should treat lines with only non-breaking spaces or a bare '>' as blank" {
+            Add-MarkdownHardBreaks -Content "one`n$( [char]0x00A0 )`ntwo" | Should -BeExactly "one`n$( [char]0x00A0 )`ntwo"
+            Add-MarkdownHardBreaks -Content "> one`n>`n> two" | Should -BeExactly "> one`n>`n> two"
+            Add-MarkdownHardBreaks -Content "> one`n> two" | Should -BeExactly "> one  `n> two"
+        }
+
+        It "Should not touch code" {
+            $content = @('text', '```sh', 'line one', 'line two\', '```', 'see `a  b\` here', 'next') -join "`n"
+            $expected = @('text', '```sh', 'line one', 'line two\', '```', 'see `a  b\` here  ', 'next') -join "`n"
+            Add-MarkdownHardBreaks -Content $content | Should -BeExactly $expected
+        }
+
+        It "Should give the same result when run twice" {
+            $content = "one\`ntwo`nthree`n`n- a`n- b`ntext`n> q`n> r"
+            $once = Add-MarkdownHardBreaks -Content $content
+            Add-MarkdownHardBreaks -Content $once | Should -BeExactly $once
+        }
+
+        It "Should accept CRLF input and return LF" {
+            Add-MarkdownHardBreaks -Content "one`r`ntwo" | Should -BeExactly "one  `ntwo"
+        }
+
+    }
+
+}
+
 Describe "New-OneNoteConnection" -Tag 'Unit' {
 
     Context 'Behavior' {
@@ -1631,6 +1700,13 @@ foo\bar\0
                 # None of the mutations may touch backslashes
                 $fakeMarkdownContent | Should -Match ([regex]::Escape('hello\$\^\\\*\_\[\]world'))
             }
+        }
+
+        It "Should leave line breaks alone by default and accept 1 and 2 for config hardbreaks" {
+            $config = Get-DefaultConfiguration
+            $config['hardbreaks']['default'] | Should -Be 1
+            $config['hardbreaks']['value'] | Should -Be 1
+            $config['hardbreaks']['validateRange'] | Should -Be @(1, 2)
         }
 
         It "Should honor config newlineCharacter" {

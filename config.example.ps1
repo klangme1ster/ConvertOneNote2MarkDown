@@ -80,6 +80,11 @@ $keepspaces = 1
 # 4: Keep '\' only where it changes the rendering: rebuild lists and line breaks that pandoc escaped ('\- item', '7\. item', '\' at the end of a line), remove other escapes that don't matter
 $keepescape = 1
 
+# Whether to end lines that are followed by another line of the same paragraph with two spaces, which is a hard line break in every markdown program. Without it a single newline is a 'soft' break, which some programs show as a line break and others join into one line; and keepescape 1 and 2 delete the backslash that pandoc writes for a line break. Headings, tables, rules, HTML, code and the lines before a list item are left alone
+# 1: Leave line breaks as they are - Default
+# 2: Force hard line breaks (two spaces at the end of the line)
+$hardbreaks = 1
+
 # Whether to use Line Feed (LF) or Carriage Return + Line Feed (CRLF) for new lines
 # 1: LF (unix) - Default
 # 2: CRLF (windows)

@@ -172,6 +172,16 @@ Whether to clear escape symbols from md files. See: https://pandoc.org/MANUAL.ht
             value = 1
             validateRange = 1,4
         }
+        hardbreaks = @{
+            description = @'
+Whether to end lines that are followed by another line of the same paragraph with two spaces, which is a hard line break in every markdown program. Without it a single newline is a 'soft' break, which some programs show as a line break and others join into one line; and keepescape 1 and 2 delete the backslash that pandoc writes for a line break. Headings, tables, rules, HTML, code and the lines before a list item are left alone
+1: Leave line breaks as they are - Default
+2: Force hard line breaks (two spaces at the end of the line)
+'@
+            default = 1
+            value = 1
+            validateRange = 1,2
+        }
         newlineCharacter = @{
             description = @'
 Whether to use Line Feed (LF) or Carriage Return + Line Feed (CRLF) for new lines
@@ -672,6 +682,64 @@ Function Repair-MarkdownEscapes {
             if ($keep) { $m.Value } else { [string]$c }
         }
         $text = [regex]::Replace($text, '\\\\|\\.', $unescape)
+
+        # Restore code (fences can contain inline code and vice versa, so repeat until nothing is left)
+        $restore = [System.Text.RegularExpressions.MatchEvaluator]{ param ($m) $saved[[int]$m.Groups[1].Value] }
+        while ($text -match 'MDSHIELD\d+END') {
+            $text = [regex]::Replace($text, 'MDSHIELD(\d+)END', $restore)
+        }
+        $text
+    }
+}
+
+Function Add-MarkdownHardBreaks {
+    [CmdletBinding()]
+    param (
+        # The markdown content produced by pandoc (any newline style)
+        [Parameter(Mandatory,Position = 0,ValueFromPipeline = $true)]
+        [AllowEmptyString()]
+        [string]
+        $Content
+    )
+
+    process {
+        # A single newline inside a paragraph is a 'soft' break: some programs show it as a line break, strict CommonMark renderers join the lines.
+        # A backslash at the end of a line (what pandoc writes for a line break) is not rendered the same way everywhere either, and
+        # 'keepescape' 1 and 2 delete it. Two trailing spaces are invisible and are rendered as a line break by every program.
+        # Fenced code blocks and inline code are never touched.
+        $saved = New-Object 'System.Collections.Generic.List[string]'
+        $shield = [System.Text.RegularExpressions.MatchEvaluator]{
+            param ($m)
+            $saved.Add($m.Value)
+            "MDSHIELD$( $saved.Count - 1 )END"
+        }
+        $text = $Content -replace '\r\n', "`n"
+        $text = [regex]::Replace($text, '(?ms)(?:^[ \t]*)?(`{3,})[^\n`]*\n.*?^[ \t]*\1`*[ \t]*$', $shield)
+        $text = [regex]::Replace($text, '(`+)(?!`)(.+?)(?<!`)\1(?!`)', $shield)
+
+        # Pandoc's line break (an odd number of backslashes at the end of a line, since a literal backslash is written as two) becomes two spaces
+        $text = $text -replace '(?m)(?<!\\)((?:\\\\)*)\\[ \t]*$(?=\n[^\n])', '$1  '
+
+        # Every other line that is directly followed by another line of the same paragraph gets two spaces too
+        $blank = " `t>$( [char]0x00A0 )"
+        $heading = '^\s*#{1,6}(?:\s|$)'
+        $table = '^\s*\|'
+        $rule = '^\s*(?:[-*_=]\s*){3,}$'
+        $html = '^\s*<'
+        $code = '^\s*MDSHIELD\d+END\s*$' # A fenced code block on its own lines
+        $listStart = '^\s*(?:[-*+]|\d+[.)])\s'
+        $lines = $text -split "`n"
+        for ($i = 0; $i -lt $lines.Count - 1; $i++) {
+            $line = $lines[$i]
+            $next = $lines[$i + 1]
+            if ($line.Trim($blank.ToCharArray()).Length -eq 0 -or $next.Trim($blank.ToCharArray()).Length -eq 0) { continue } # Paragraph end. A bare '>' is a blank line in a block quote
+            if ($line.EndsWith('  ')) { continue } # Already a line break
+            if ($line -match $heading -or $line -match $table -or $line -match $html -or $line -match $code) { continue }
+            if ($line -match $rule -or $next -match $rule) { continue }
+            if ($next -match $listStart -or $next -match $table -or $next -match $heading -or $next -match $html -or $next -match $code) { continue }
+            $lines[$i] = $line.TrimEnd() + '  '
+        }
+        $text = $lines -join "`n"
 
         # Restore code (fences can contain inline code and vice versa, so repeat until nothing is left)
         $restore = [System.Text.RegularExpressions.MatchEvaluator]{ param ($m) $saved[[int]$m.Groups[1].Value] }
@@ -1518,6 +1586,9 @@ Function Convert-OneNotePage {
                     $content = @( Get-Content -LiteralPath $pageCfg['filePath'] -ErrorAction Stop ) # Use -LiteralPath so that characters like '(', ')', '[', ']', '`', "'", '"' are supported. Or else we will get an error "Cannot find path 'xxx' because it does not exist"
                     # Discard the page's title, date and time lines (if present). We are going to add our own header
                     $content = @( Remove-PageHeader -Lines $content -Title $pageCfg['object'].name ) -join "`n"
+                    if ($config['hardbreaks']['value'] -eq 2) {
+                        $content = Add-MarkdownHardBreaks -Content $content
+                    }
                     if ($config['keepescape']['value'] -eq 4) {
                         $content = Repair-MarkdownEscapes -Content $content
                     }

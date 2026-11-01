@@ -16,6 +16,7 @@ Look at your existing export. If you see one of these, this fork probably helps:
 | Folder names like `AI ^M  ML` or `DECT^J Bluetooth` | [Section names](#section-names-with-onenote-escape-codes) | PR [#194](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/194) |
 | Old notes, folders or images stay after you renamed or deleted them in OneNote | [`overwrite = 2`](#new-option-overwrite) | PR [#195](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/195) |
 | Lists show as `\- item` or `7\. item`, backslashes at line ends, loose lists, `--\>` | [`keepescape = 4`](#new-option-keepescape--4) | PR [#217](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/217) |
+| Lines of a paragraph run together in some programs, or show a `\` at the line end | [`hardbreaks = 2`](#new-option-hardbreaks) | this fork only |
 | `Created:` / `Modified:` has the wrong time zone offset (for example +05:30) | [Time zone](#page-content-was-deleted) | PR #192 |
 
 ## How to use the fork
@@ -117,6 +118,33 @@ The letters and digits of every page are identical in both modes, so no text is 
 
 *Caveat:* a literal `- ` at the start of a line is now treated as a list. If you meant it as plain text, keep `keepescape = 3`.
 
+### New option: `hardbreaks`
+
+*Symptom:* in some programs lines of one paragraph run together into a single line, in others they appear as separate lines. Markdown knows two kinds of line break: a single newline is a *soft* break (rendered as a space by strict CommonMark renderers, as a line break by others), and two spaces at the end of the line are a *hard* break that every program renders as a break. OneNote's line breaks (Shift+Enter) are written by Pandoc as a backslash at the line end, which is not rendered the same way everywhere either. `keepescape = 1` and `2` even delete that backslash, so the line break is lost.
+
+*Fix:* `hardbreaks = 2` runs `Add-MarkdownHardBreaks` before the `keepescape` replacements:
+
+```markdown
+first line\
+second line
+third line
+```
+
+becomes (the two trailing spaces are invisible)
+
+```markdown
+first line  
+second line  
+third line
+```
+
+- A backslash at the end of a line (Pandoc's line break) becomes two spaces. A literal backslash is written by Pandoc as `\\` and stays as text.
+- Every other line that is directly followed by another line of the same paragraph gets two spaces.
+- Left alone: blank lines and paragraph ends, headings, tables, rules, HTML, code blocks and inline code, and a line before a list item.
+- Default `1` changes nothing. The option works with every `keepescape` mode; with `keepescape = 4` the line-end backslash is converted anyway.
+- Checked on one real notebook (196 pages, `keepescape = 1`): with `hardbreaks = 1` all 418 line breaks inside paragraphs are soft (the backslashes are gone); with `hardbreaks = 2` 415 are hard and 3 stay soft. The letters and digits of every page are identical.
+- Limitation: a few lines that were separated only by a line of non-breaking spaces or a bare `>` end up next to each other after `keepspaces` removes that line; they stay soft.
+
 ### Not changed on purpose
 
 - **`Modified` before `Created`:** on some pages the modified time is 1 to 2 hours before the created time. That is OneNote's own data (probably pages made by the web clipper, which store local time labelled as UTC); the script converts it correctly.
@@ -149,4 +177,4 @@ The five PRs are independent and merge cleanly in any order. Two more PRs were o
   ```
 
   Do not set `$ErrorActionPreference = 'Stop'` for the run: several tests expect non-terminating errors.
-- **Test status:** 114 unit tests. The only failure, "Throw if -Length is greater than 255", depends on the system language: it expects the English .NET error message and fails on a German Windows, with or without these changes (see [docs/known-issues.md](docs/known-issues.md)).
+- **Test status:** 130 unit tests. The only failure, "Throw if -Length is greater than 255", depends on the system language: it expects the English .NET error message and fails on a German Windows, with or without these changes (see [docs/known-issues.md](docs/known-issues.md)).
