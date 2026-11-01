@@ -15,7 +15,7 @@ Look at your existing export. If you see one of these, this fork probably helps:
 | Pages with the same title overwrite each other; attachment links like `[a.pdf]([b-a.pdf](...))`; images with `#` in the name show as broken | [File names](#file-names-and-links) | PR [#193](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/193) |
 | Folder names like `AI ^M  ML` or `DECT^J Bluetooth` | [Section names](#section-names-with-onenote-escape-codes) | PR [#194](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/194) |
 | Old notes, folders or images stay after you renamed or deleted them in OneNote | [`overwrite = 2`](#new-option-overwrite) | PR [#195](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/195) |
-| Lists show as `\- item` or `7\. item`, backslashes at line ends, loose lists, `--\>` | [`keepescape = 4`](#new-option-keepescape--4) | this fork only |
+| Lists show as `\- item` or `7\. item`, backslashes at line ends, loose lists, `--\>` | [`keepescape = 4`](#new-option-keepescape--4) | PR [#217](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/217) |
 | `Created:` / `Modified:` has the wrong time zone offset (for example +05:30) | [Time zone](#page-content-was-deleted) | PR #192 |
 
 ## How to use the fork
@@ -132,7 +132,7 @@ The letters and digits of every page are identical in both modes, so no text is 
 | [#194](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/194) | `fix/file-names-decode-onenote-escape-codes-in-section-names` | Section names with escape codes |
 | [#195](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/195) | `enhancement/configuration-add-option-overwrite-to-remove-previous-output` | The `overwrite` option |
 
-The five PRs are independent and merge cleanly in any order. `keepescape = 4` (branch `enhancement/keepescape-repair-markdown`) is not offered upstream yet. The PR texts are in [docs/pr-descriptions.md](docs/pr-descriptions.md). If upstream merges the PRs, `main` can simply be replaced by upstream's version.
+The five PRs are independent and merge cleanly in any order. Two more PRs were opened on 2026-11-01: [#217](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/217) for `keepescape = 4` and [#216](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/216), which removes the retired `windows-2019` job and the unusable PowerShell 6.x/7.0 container jobs from the CI workflow (this fork's `main` has the same CI change). #216 should be merged first, so the CI of the other PRs can finish. The PR texts are in [docs/pr-descriptions.md](docs/pr-descriptions.md). If upstream merges the PRs, `main` can simply be replaced by upstream's version.
 
 `main` differs from the merged PR branches in one line: `Remove-PreviousNotebookOutput` also decodes the escape codes in the notebook name.
 

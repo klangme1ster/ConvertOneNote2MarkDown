@@ -116,7 +116,7 @@ New unit tests run against real files in `TestDrive`: removal while keeping `doc
 
 ## 6. Branch `enhancement/configuration-add-keepescape-mode-4-to-repair-pandoc-escapes`
 
-Based on upstream `master`, independent of PRs 1 to 5. Not opened upstream yet.
+Based on upstream `master`, independent of PRs 1 to 5. Opened upstream as [#217](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/217) on 2026-11-01.
 
 **Title:** Enhancement (configuration): Add keepescape mode 4 to repair Pandoc escapes
 
@@ -147,7 +147,7 @@ The default (`1`) and modes 1 to 3 are unchanged. A literal `- ` at the start of
 
 ## 7. Branch `fix/ci-remove-retired-windows-2019-and-unusable-container-jobs`
 
-Based on upstream `master`. Not opened upstream yet. Best merged before any other open PR, so their CI can finish.
+Based on upstream `master`. Opened upstream as [#216](https://github.com/theohbrothers/ConvertOneNote2MarkDown/pull/216) on 2026-11-01. Best merged before any other open PR, so their CI can finish.
 
 **Title:** CI: Remove the retired windows-2019 job and the unusable PowerShell 6.x/7.0 container jobs
 
