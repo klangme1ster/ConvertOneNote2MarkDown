@@ -111,3 +111,54 @@ This PR adds the option `overwrite`:
 This overlaps in purpose with #190 (`skipIfExists`), which is about re-running conversions too. The two options don't conflict.
 
 New unit tests run against real files in `TestDrive`: removal while keeping `docx`, including a read-only file; a dry run; and a notebook folder that doesn't exist. I also used it on two notebooks (393 pages, with long paths): a planted stale note was removed, and both `docx` folders were kept.
+
+---
+
+## 6. Branch `enhancement/configuration-add-keepescape-mode-4-to-repair-pandoc-escapes`
+
+Based on upstream `master`, independent of PRs 1 to 5. Not opened upstream yet.
+
+**Title:** Enhancement (configuration): Add keepescape mode 4 to repair Pandoc escapes
+
+**Description:**
+
+OneNote pages often start paragraphs with a literal `- ` or `7.` instead of using real lists. Pandoc escapes such text so it does not turn into a list (`\- item`, `7\. item`). In an export of two notebooks (393 pages) this left the notes with plain paragraphs instead of lists, a blank line between every item, a literal `\` at the end of many lines (Pandoc's hard line break) and many needless escapes (`--\>`, `snake\_case`).
+
+The existing `keepescape` modes cannot fix this: `1` deletes every backslash (also in Windows paths such as `C:\Program Files`), `2` and `3` keep the list escapes.
+
+This PR adds `keepescape = 4`, implemented as the function `Repair-MarkdownEscapes`, run on Pandoc's output before the existing replacements:
+
+- Rebuilds lists from `\- item` and `7\. item` (also inside block quotes and when a non-breaking space follows the marker), removes the blank lines between list items, and drops lone `-` lines (empty bullets, or an accidental heading underline).
+- Turns a `\` at the end of a line into two trailing spaces, or drops it at the end of a paragraph.
+- Removes escapes that cannot change the rendering (`\>` in `--\>`, `\_` in `snake\_case`, `\.` and `\-` in the middle of a line).
+- Keeps escapes that matter: at the start of a line, `\[`, `\]`, `\*` pairs, `\`, Windows and UNC paths.
+- Never touches code fences and inline code.
+
+The default (`1`) and modes 1 to 3 are unchanged. A literal `- ` at the start of a line is treated as a list in mode 4; use `3` if that is not wanted.
+
+**Tested**
+
+- 22 new unit tests: each rule, cases that must stay untouched (Windows and UNC paths, `\*`, code), block quotes, non-breaking spaces, running it twice gives the same result, and that mode 4 adds no replacement that touches backslashes.
+- Real run against OneNote with two notebooks (393 pages, same `.docx` files, mode 3 against mode 4): escaped bullets 601 to 0, blank lines between list items 67 to 0, line-end backslashes 1804 to 0, lone `-` lines 29 to 0, escaped numbers 133 to 0. The letters and digits of every page are identical in both modes, so no text is lost.
+- Unit tests: 96 passed in Windows PowerShell 5.1; the one failure ("Throw if -Length is greater than 255") expects the English .NET error message and also fails on `master` on a German Windows.
+- Not tested here: PowerShell 6.x and 7.0 (see the CI PR below).
+
+---
+
+## 7. Branch `fix/ci-remove-retired-windows-2019-and-unusable-container-jobs`
+
+Based on upstream `master`. Not opened upstream yet. Best merged before any other open PR, so their CI can finish.
+
+**Title:** CI: Remove the retired windows-2019 job and the unusable PowerShell 6.x/7.0 container jobs
+
+**Description:**
+
+Running the workflow on this repository's pull requests (in a fork) shows three problems that have nothing to do with the code:
+
+- `test-powershell-5-1-windows-2019` stays queued forever because GitHub retired the `windows-2019` runner image (June 2025). The whole workflow run never completes.
+- `test-powershell-6-0`, `6-1`, `6-2` and `7-0` run in Ubuntu 16.04/18.04 containers. `actions/checkout` fails there before any test runs: `/__e/node24/bin/node: ... GLIBC_2.28 not found`, because GitHub now forces a newer Node runtime on JavaScript actions.
+- `actions/checkout@v3` is outdated.
+
+This PR removes those five jobs (and their entries in `needs:`) and updates `actions/checkout` to `v4`. Windows PowerShell 5.1 on `windows-2022` and PowerShell 7.1 to 7.4 remain and pass. The tests are not changed.
+
+The trade-off: PowerShell 6.x and 7.0 are no longer exercised by CI. They could be added back with a newer container image or a different way to install them, if wanted.
