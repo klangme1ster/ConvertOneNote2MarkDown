@@ -3,6 +3,8 @@
 [![github-actions](https://github.com/theohbrothers/ConvertOneNote2MarkDown/actions/workflows/ci-master-pr.yml/badge.svg?branch=master)](https://github.com/theohbrothers/ConvertOneNote2MarkDown/actions/workflows/ci-master-pr.yml)
 [![github-release](https://img.shields.io/github/v/release/theohbrothers/ConvertOneNote2MarkDown?style=flat-square)](https://github.com/theohbrothers/ConvertOneNote2MarkDown/releases/)
 
+> **Local copy:** this copy has fixes and an extra `overwrite` option on top of upstream; see [LOCAL-CHANGES.md](LOCAL-CHANGES.md).
+
 Ready to make the step to Markdown and saying farewell to your OneNote, EverNote or whatever proprietary note taking tool you are using? Nothing beats clear text, right? Read on!
 
 The powershell script `ConvertOneNote2MarkDown-v2.ps1` will utilize the OneNote Object Model on your workstation to convert all OneNote pages to Word documents and then utilizes Pandoc to convert the Word documents to Markdown (`.md`) format.

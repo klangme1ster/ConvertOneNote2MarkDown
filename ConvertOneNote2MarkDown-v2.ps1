@@ -630,7 +630,7 @@ Function Remove-PreviousNotebookOutput {
     )
 
     # The same directory New-SectionGroupConversionConfig converts this notebook into
-    $nameCompat = $NotebookName | Remove-InvalidFileNameChars
+    $nameCompat = $NotebookName | ConvertFrom-OneNoteEscapedName | Remove-InvalidFileNameChars
     if (! $nameCompat.Trim('-. ')) {
         throw "Refusing to remove previous output of notebook '$NotebookName': its directory name would be empty"
     }
