@@ -575,6 +575,58 @@ Describe "Repair-MarkdownEscapes" -Tag 'Unit' {
             Repair-MarkdownEscapes -Content $once | Should -BeExactly $once
         }
 
+        It "Should not touch indented code blocks, nor tilde fences" {
+            $indented = "text`n`n    grep a\.b`n    - x\-y`n`n    ls \`n    -l`n`nend"
+            Repair-MarkdownEscapes -Content $indented | Should -BeExactly $indented
+            $tilde = "a`n`n~~~`nx\.y \_z\`n~~~`n`nb"
+            Repair-MarkdownEscapes -Content $tilde | Should -BeExactly $tilde
+        }
+
+        It "Should treat indentation below a list item as part of the item, not as code" {
+            Repair-MarkdownEscapes -Content "- item`n`n    more\. text" | Should -BeExactly "- item`n`n    more. text"
+        }
+
+        It "Should treat indented lines below more indented text of a list item as part of the item (real pandoc lists)" {
+            $content = "2.  item`n    see text`n`n    - Pro: x`n    - Con: y\`n      more"
+            Repair-MarkdownEscapes -Content $content | Should -BeExactly "2.  item`n    see text`n`n    - Pro: x`n    - Con: y  `n      more"
+        }
+
+        It "Should leave a line with only a non-breaking space and a backslash as a line that keepspaces empties" {
+            $nbsp = [char]0x00A0
+            Repair-MarkdownEscapes -Content "a`n$nbsp\`nb" | Should -BeExactly "a`n$nbsp  `nb"
+        }
+
+        It "Should not join a lone number with a block that can't be its text (<Name>)" -TestCases @(
+            @{ Name = 'heading'; Content = "7\.`n`n# Head" }
+            @{ Name = 'code fence'; Content = "7\.`n`n``````sh`nls`n``````" }
+            @{ Name = 'quote'; Content = "7\.`n`n> quote" }
+            @{ Name = 'table'; Content = "7\.`n`n| a | b |" }
+            @{ Name = 'list item'; Content = "- a`n`n7\.`n`n- b" }
+        ) {
+            param ($Name, $Content)
+
+            Repair-MarkdownEscapes -Content $Content | Should -BeExactly $Content
+        }
+
+        It "Should keep escapes that matter right after a rebuilt list marker (<Name>)" -TestCases @(
+            @{ Name = 'heading'; Content = '\- \# x'; Expected = '- \# x' }
+            @{ Name = 'quote'; Content = '\- \> q'; Expected = '- \> q' }
+            @{ Name = 'nested number'; Content = '\- 1\. x'; Expected = '- 1\. x' }
+            @{ Name = 'mid-line escapes still go'; Content = '\- a \# b'; Expected = '- a # b' }
+        ) {
+            param ($Name, $Content, $Expected)
+
+            Repair-MarkdownEscapes -Content $Content | Should -BeExactly $Expected
+        }
+
+        It "Should keep the line break after a non-breaking space when keepspaces removes trailing non-breaking spaces" {
+            $nbsp = [char]0x00A0
+            $result = Repair-MarkdownEscapes -Content "text$nbsp\`nmore"
+            $result | Should -BeExactly "text  `nmore"
+            # What the 'keepspaces' rule for trailing spaces with a non-breaking space does afterwards
+            ($result -replace "(?m)[ \t\u00A0]*\u00A0[ \t\u00A0]*$", '') | Should -BeExactly "text  `nmore"
+        }
+
     }
 
 }
@@ -620,6 +672,16 @@ Describe "Add-MarkdownHardBreaks" -Tag 'Unit' {
             param ($Name, $Content)
 
             Add-MarkdownHardBreaks -Content $Content | Should -BeExactly $Content
+        }
+
+        It "Should not touch indented code blocks" {
+            $content = "text`n`n    one`n    two`n`nnext`nline"
+            Add-MarkdownHardBreaks -Content $content | Should -BeExactly "text`n`n    one`n    two`n`nnext  `nline"
+        }
+
+        It "Should keep the line break after a non-breaking space" {
+            $nbsp = [char]0x00A0
+            Add-MarkdownHardBreaks -Content "text$nbsp\`nmore" | Should -BeExactly "text  `nmore"
         }
 
         It "Should treat lines with only non-breaking spaces or a bare '>' as blank" {
@@ -2165,6 +2227,18 @@ Describe "Remove-PreviousNotebookOutput" -Tag 'Unit' {
             Test-Path -LiteralPath (Join-Path $notebookDirectory 'docx\page.docx') | Should -Be $true
         }
 
+        It "Should keep items whose name starts with a dot" {
+            New-Item -ItemType Directory -Path (Join-Path $notebookDirectory '.obsidian') -Force > $null
+            'cfg' | Set-Content -LiteralPath (Join-Path $notebookDirectory '.obsidian\app.json')
+            '' | Set-Content -LiteralPath (Join-Path $notebookDirectory '.gitignore')
+
+            Remove-PreviousNotebookOutput -NotesDestination $TestDrive -NotebookName 'my notebook'
+
+            Test-Path -LiteralPath (Join-Path $notebookDirectory '.obsidian\app.json') | Should -Be $true
+            Test-Path -LiteralPath (Join-Path $notebookDirectory '.gitignore') | Should -Be $true
+            Test-Path -LiteralPath (Join-Path $notebookDirectory 'section') | Should -Be $false
+        }
+
         It "Should not remove anything on a dry run" {
             Remove-PreviousNotebookOutput -NotesDestination $TestDrive -NotebookName 'my notebook' -DryRun
 
@@ -2173,6 +2247,34 @@ Describe "Remove-PreviousNotebookOutput" -Tag 'Unit' {
 
         It "Should do nothing if the notebook's directory does not exist" {
             { Remove-PreviousNotebookOutput -NotesDestination $TestDrive -NotebookName 'other notebook' } | Should -Not -Throw
+        }
+
+    }
+
+}
+
+Describe "Get-UniqueImageName" -Tag 'Unit' {
+
+    Context 'Behavior' {
+
+        BeforeEach {
+            $script:ImageTargetsInUse = @{}
+        }
+
+        It "Should return the name unchanged if it is not in use" {
+            Get-UniqueImageName -MediaPath 'C:\notes\media' -Name 's0-Meeting-1-image1.png' | Should -BeExactly 's0-Meeting-1-image1.png'
+        }
+
+        It "Should number a name that two pages end up with (e.g. 'Meeting #1' and 'Meeting 1')" {
+            Get-UniqueImageName -MediaPath 'C:\notes\media' -Name 's0-Meeting-1-image1.png' | Should -BeExactly 's0-Meeting-1-image1.png'
+            Get-UniqueImageName -MediaPath 'C:\notes\media' -Name 's0-Meeting-1-image1.png' | Should -BeExactly 's0-Meeting-1-image1-2.png'
+            Get-UniqueImageName -MediaPath 'C:\notes\media' -Name 's0-Meeting-1-image1.png' | Should -BeExactly 's0-Meeting-1-image1-3.png'
+        }
+
+        It "Should ignore the case and allow the same name in another media folder" {
+            Get-UniqueImageName -MediaPath 'C:\notes\media' -Name 'Image.png' | Should -BeExactly 'Image.png'
+            Get-UniqueImageName -MediaPath 'C:\notes\media' -Name 'IMAGE.png' | Should -BeExactly 'IMAGE-2.png'
+            Get-UniqueImageName -MediaPath 'C:\notes\other\media' -Name 'Image.png' | Should -BeExactly 'Image.png'
         }
 
     }

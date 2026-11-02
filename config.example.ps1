@@ -68,7 +68,7 @@ $conversion = 'markdown-simple_tables-multiline_tables-grid_tables+pipe_tables'
 # 2: Don't include
 $headerTimestampEnabled = 1
 
-# Whether to clear extra newlines between unordered (bullet) and ordered (numbered) list items, non-breaking spaces from blank lines, and `>` after unordered lists
+# Whether to clear extra newlines between unordered (bullet) and ordered (numbered) list items, non-breaking spaces from blank lines and line ends (other non-breaking spaces become normal spaces), and `>` after unordered lists
 # 1: Clear - Default
 # 2: Don't clear
 $keepspaces = 1
@@ -94,3 +94,8 @@ $newlineCharacter = 1
 # 1: Don't include PDF - Default
 # 2: Include PDF
 $exportPdf = 1
+
+# Whether to remove a notebook's previous output before converting it. Without this, files of the same name are overwritten, but notes, folders and media that were renamed or deleted in OneNote since the last run are left behind. The notebook's docx folder is always kept
+# 1: Keep previous output - Default
+# 2: Remove previous output. Everything in the notebook's folder is deleted, including files you put there yourself, except the docx folder and items whose name starts with a dot (e.g. .git, .obsidian)
+$overwrite = 1

@@ -60,17 +60,17 @@ Three bugs with the same cause, names built from the page path:
 
 - **Duplicate page names overwrote each other.** The `-1`, `-2` postfix was added before the name was cut to `mdFileNameAndFolderNameMaxLength`, so the postfix could be cut off again and two pages were written to the same file. Duplicates are now detected on the cut name, and the postfix survives the cut.
 - **Attachment links were nested.** With `11-36-00002.pdf` and `Datenblatt_11-36-00002.pdf` on one page, the first name also matched inside the second and the link was inserted into the other link. Now a name only matches if it is not part of a longer file name.
-- **Image names broke links.** Names such as `c't-expert-community--Newsletter-#10-image1.jpg` contain `#`, which Markdown reads as a URL fragment. Image names now go through the same clean-up as attachments.
+- **Image names broke links.** Names such as `c't-expert-community--Newsletter-#10-image1.jpg` contain `#`, which Markdown reads as a URL fragment. Image names now go through the same clean-up as attachments. If the clean-up makes the image names of two pages equal (`Meeting #1` and `Meeting 1`), the later image gets a number (`...-image1-2.png`) instead of overwriting the other page's image.
 
 ### Section names with OneNote escape codes
 
 OneNote stores characters that are not allowed in a section file name as `^` codes: `AI / ML` is reported as `AI ^M  ML`, `DECT & Bluetooth` as `DECT^J Bluetooth`. These ended up in folder names. `ConvertFrom-OneNoteEscapedName` decodes `^M` to `/` (then `-`, as for any `/`) and `^J` to `&` for section, section group and notebook names. Only these two codes have been seen; others would still show as `^<letter>`.
 
-*Note:* if you already exported before, these folders get new names (`AI ^M  ML` becomes `AI-ML`), so links that point to the old folder names need updating.
+*Note:* if you already exported before, these folders get new names (`AI ^M  ML` becomes `AI----ML`), so links that point to the old folder names need updating.
 
 ### New option: `overwrite`
 
-`overwrite = 2` removes a notebook's previous output before converting it, so notes, folders and media that were renamed or deleted in OneNote since the last run do not linger. The notebook's `docx` folder is always kept, so `usedocx = 2` still reuses it. Only the notebook's own folder under `notesdestpath` is touched. Read-only files and paths over 260 characters are handled. The default `1` keeps the previous output (old behaviour).
+`overwrite = 2` removes a notebook's previous output before converting it, so notes, folders and media that were renamed or deleted in OneNote since the last run do not linger. The notebook's `docx` folder is always kept, so `usedocx = 2` still reuses it. Only the notebook's own folder under `notesdestpath` is touched, but **everything in it is deleted**, also files you put there yourself. Items whose name starts with a dot (`.git`, `.obsidian`) are kept. Read-only files and paths over 260 characters are handled. The default `1` keeps the previous output (old behaviour).
 
 ### New option: `keepescape = 4`
 
@@ -100,8 +100,9 @@ next line --> result
 - Rebuilds lists from `\- item` and `7\. item` (also inside block quotes, and when a non-breaking space follows the marker). Removes the blank lines between list items and lone `-` lines (empty bullets, or an accidental heading underline).
 - A `\` at the end of a line (Pandoc's hard line break) becomes two trailing spaces, or is dropped at the end of a paragraph.
 - Removes escapes that cannot change the rendering (`--\>`, `snake\_case`, `\.` in the middle of a line).
-- Keeps escapes that matter: at the start of a line, `\[`, `\]`, `\*` pairs, `\\`, Windows and UNC paths.
-- Code fences and inline code are never touched.
+- Keeps escapes that matter: at the start of a line or of a list item's text (`\- \# x` becomes `- \# x`), `\[`, `\]`, `\*` pairs, `\\`, Windows and UNC paths.
+- Code fences (backticks or `~~~`), indented code blocks (4 spaces or a tab after a blank line, not below a list item) and inline code are never touched.
+- A number alone on its line (`7\.`) is joined with the next paragraph only if that is plain text, not a heading, quote, table, code block or another list item.
 - Modes 1 to 3 and the default (`1`) are unchanged.
 
 *Result on two real notebooks (393 pages, same `.docx` files, mode 3 against mode 4):*
@@ -140,10 +141,25 @@ third line
 
 - A backslash at the end of a line (Pandoc's line break) becomes two spaces. A literal backslash is written by Pandoc as `\\` and stays as text.
 - Every other line that is directly followed by another line of the same paragraph gets two spaces.
-- Left alone: blank lines and paragraph ends, headings, tables, rules, HTML, code blocks and inline code, and a line before a list item.
+- Left alone: blank lines and paragraph ends, headings, tables, rules, HTML, code blocks (fenced or indented) and inline code, and a line before a list item. A line that ends in non-breaking spaces and a line-end backslash also gets its break, even though `keepspaces` removes trailing non-breaking spaces afterwards.
 - Default `1` changes nothing. The option works with every `keepescape` mode; with `keepescape = 4` the line-end backslash is converted anyway.
 - Checked on one real notebook (196 pages, `keepescape = 1`): with `hardbreaks = 1` all 418 line breaks inside paragraphs are soft (the backslashes are gone); with `hardbreaks = 2` 415 are hard and 3 stay soft. The letters and digits of every page are identical.
 - Limitation: a few lines that were separated only by a line of non-breaking spaces or a bare `>` end up next to each other after `keepspaces` removes that line; they stay soft.
+
+### Known limitations
+
+Edge cases that were found in a review on 2026-11-02 and are not fixed. None of them showed up in the real notebooks used for testing (393 pages); all are also listed in [docs/known-issues.md](docs/known-issues.md).
+
+- **`keepescape = 4`**
+  - On a single very long line with many escapes, or with thousands of blank lines between list items, it gets slow (a 660 KB line took about 2 minutes, 4000 blank lines about 12 seconds). A normal 1 MB page takes about 1 second.
+  - A text that ends a line with an odd number of backslashes (a literal backslash plus a line break) keeps its backslashes. `hardbreaks = 2` handles this case.
+  - Running it twice can differ from running it once in one odd case (a line-end backslash followed by a lone `-` line). The converter runs it once.
+  - Escapes next to inline code are judged as if the code were a letter, so a `\_` between inline code and text can be removed although it started an emphasis.
+- **`hardbreaks = 2`:** a line that consists of nothing but inline code is treated like a code block, so it gets no line break before and after it.
+- **Both:** a page text that contains the literal word `MDSHIELD0END` (any number in the middle) is mixed up with the placeholders that protect code.
+- **Page header:** for the Japanese, Chinese, Korean, Arabic (Saudi Arabia) and Persian date formats of OneNote the title, date and time lines at the start of a page may stay in the markdown, because the date pattern expects a separate 4-digit year. Not verified with OneNote in these languages.
+- **`overwrite = 2`:** two notebooks with the same name would share one folder; the second one then deletes the first one's output of the same run. Not verified whether OneNote allows two notebooks with the same name.
+- **PDF export (`exportPdf = 2`):** when a page name of a duplicate is at the file name length limit, the `.pdf` names can end up equal and overwrite each other.
 
 ### Not changed on purpose
 
@@ -177,4 +193,4 @@ The five PRs are independent and merge cleanly in any order. Two more PRs were o
   ```
 
   Do not set `$ErrorActionPreference = 'Stop'` for the run: several tests expect non-terminating errors.
-- **Test status:** 130 unit tests. The only failure, "Throw if -Length is greater than 255", depends on the system language: it expects the English .NET error message and fails on a German Windows, with or without these changes (see [docs/known-issues.md](docs/known-issues.md)).
+- **Test status:** 150 unit tests. The only failure, "Throw if -Length is greater than 255", depends on the system language: it expects the English .NET error message and fails on a German Windows, with or without these changes (see [docs/known-issues.md](docs/known-issues.md)).

@@ -3,7 +3,7 @@
 [![github-actions](https://github.com/theohbrothers/ConvertOneNote2MarkDown/actions/workflows/ci-master-pr.yml/badge.svg?branch=master)](https://github.com/theohbrothers/ConvertOneNote2MarkDown/actions/workflows/ci-master-pr.yml)
 [![github-release](https://img.shields.io/github/v/release/theohbrothers/ConvertOneNote2MarkDown?style=flat-square)](https://github.com/theohbrothers/ConvertOneNote2MarkDown/releases/)
 
-> **This is a fork** of [theohbrothers/ConvertOneNote2MarkDown](https://github.com/theohbrothers/ConvertOneNote2MarkDown) with bug fixes (words glued together, missing page content, overwritten duplicate pages, broken links) and two new options: `overwrite` (remove a notebook's old output first) and `keepescape = 4` (repair lists and escapes that Pandoc writes as `\- item`, `7\. item`). See [FORK-CHANGES.md](FORK-CHANGES.md) for what changed, with examples and when you need it.
+> **This is a fork** of [theohbrothers/ConvertOneNote2MarkDown](https://github.com/theohbrothers/ConvertOneNote2MarkDown) with bug fixes (words glued together, missing page content, overwritten duplicate pages, broken links) and three new options: `overwrite` (remove a notebook's old output first), `keepescape = 4` (repair lists and escapes that Pandoc writes as `\- item`, `7\. item`) and `hardbreaks` (force hard line breaks). See [FORK-CHANGES.md](FORK-CHANGES.md) for what changed, with examples and when you need it, and its [known limitations](FORK-CHANGES.md#known-limitations) for edge cases that do not work yet.
 
 Ready to make the step to Markdown and saying farewell to your OneNote, EverNote or whatever proprietary note taking tool you are using? Nothing beats clear text, right? Read on!
 
@@ -36,7 +36,7 @@ The powershell script `ConvertOneNote2MarkDown-v2.ps1` will utilize the OneNote 
 * Choose whether to force hard line breaks (`$hardbreaks = 2`): lines that are followed by another line of the same paragraph end with two spaces, which every markdown program renders as a line break. Invisible, unlike a `\` at the line end, and it survives `$keepescape = 1`
 * Choose whether to use Line Feed (`LF`) or Carriage Return + Line Feed (`CRLF`) for new lines
 * Choose whether to include a `.pdf` export alongside the `.md` file. `.md` does not preserve `InkDrawing` (i.e. overlayed drawings, highlights, pen marks) absolute positions within a page, but a `.pdf` export is a complete page snapshot that preserves `InkDrawing` absolute positions within a page.
-* Choose whether to **remove a notebook's previous output** before converting it (`$overwrite = 2`), so notes, folders and media that were renamed or deleted in OneNote since the last run don't linger. The notebook's `docx` folder is always kept, so existing `.docx` files can still be reused.
+* Choose whether to **remove a notebook's previous output** before converting it (`$overwrite = 2`), so notes, folders and media that were renamed or deleted in OneNote since the last run don't linger. The notebook's `docx` folder is always kept, so existing `.docx` files can still be reused. Everything else in the notebook's folder is deleted, including files you added yourself; only items whose name starts with a dot (`.git`, `.obsidian`) are kept.
 * Detailed logs. Run the script with `-Verbose` to see detailed logs of each page's conversion.
 
 ## Known Issues

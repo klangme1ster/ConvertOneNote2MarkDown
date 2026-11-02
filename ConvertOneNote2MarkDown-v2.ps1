@@ -206,7 +206,7 @@ Whether to include a PDF export alongside the markdown file
             description = @'
 Whether to remove a notebook's previous output before converting it. Without this, files of the same name are overwritten, but notes, folders and media that were renamed or deleted in OneNote since the last run are left behind. The notebook's docx folder is always kept
 1: Keep previous output - Default
-2: Remove previous output (except the docx folder)
+2: Remove previous output. Everything in the notebook's folder is deleted, including files you put there yourself, except the docx folder and items whose name starts with a dot (e.g. .git, .obsidian)
 '@
             default = 1
             value = 1
@@ -591,6 +591,33 @@ Function Remove-PageHeader {
     }
 }
 
+Function Protect-IndentedCode {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]
+        $Text
+    ,
+        [Parameter(Mandatory)]
+        [System.Text.RegularExpressions.MatchEvaluator]
+        $Shield
+    )
+
+    # An indented code block is a run of lines indented by 4+ spaces or a tab that starts after a blank line (or at the start of the text).
+    # Below a list item, or below an indented line (more text of a list item), the indentation continues the item, so that is not code.
+    $evaluator = [System.Text.RegularExpressions.MatchEvaluator]{
+        param ($m)
+        $before = $Text.Substring(0, $m.Index).TrimEnd()
+        $previousLine = $before.Substring($before.LastIndexOf([char]10) + 1)
+        if ($previousLine -match '^[ \t]' -or $previousLine -match '^>*[ \t]*(?:[-*+]|\d+[.)]|\\-|\d+\\\.)(?:\s|$)') {
+            return $m.Value
+        }
+        $Shield.Invoke($m)
+    }
+    [regex]::Replace($Text, '(?<=\A|\n[ \t]*\n)(?:(?: {4}|\t)[^\n]*)(?:\n(?:(?: {4}|\t)[^\n]*|[ \t]*(?=\n(?: {4}|\t))))*', $evaluator)
+}
+
 Function Repair-MarkdownEscapes {
     [CmdletBinding()]
     param (
@@ -612,18 +639,19 @@ Function Repair-MarkdownEscapes {
             "MDSHIELD$( $saved.Count - 1 )END"
         }
         $text = $Content -replace '\r\n', "`n"
-        $text = [regex]::Replace($text, '(?ms)(?:^[ \t]*)?(`{3,})[^\n`]*\n.*?^[ \t]*\1`*[ \t]*$', $shield)
+        $text = [regex]::Replace($text, '(?ms)(?:^[ \t]*)?(`{3,}|~{3,})[^\n`]*\n.*?^[ \t]*\1[`~]*[ \t]*$', $shield)
+        $text = Protect-IndentedCode -Text $text -Shield $shield
         $text = [regex]::Replace($text, '(`+)(?!`)(.+?)(?<!`)\1(?!`)', $shield)
 
         # A backslash at the end of a line is a hard break only in some renderers: use two spaces. At the end of a paragraph it has no effect.
-        $text = $text -replace '(?m)(?<!\\)\\$(?=\n[^\n])', '  '
+        $text = $text -replace '(?m)(?:(?<=\S)[ \t]*\u00A0[ \t\u00A0]*)?(?<!\\)\\$(?=\n[^\n])', '  ' # A run of spaces with a non-breaking space before the backslash goes too: 'keepspaces' would remove a trailing run that contains a non-breaking space, line break included
         $text = $text -replace '(?m)(?<!\\)\\[ \t]*$', ''
         $text = $text -replace '(?m) +$(?=\n[ \t]*\n)', ''
 
         # Lists
         $text = $text -replace '(?m)^[ \t\u00A0>]*\\?-[ \t\u00A0]*$\n?', '' # A lone '-' or '\-' line is an empty bullet (below a text line, '-' would even make a heading)
         $text = $text -replace '(?m)^((?:[ \t]*>)*[ \t]*)\\-[ \t\u00A0]+', '$1- '
-        $text = $text -replace '(?m)^(\d+)\\\.[ \t]*\n(?:[ \t]*\n)+(?=\S)', '$1. ' # A number alone on its line, with the item text in the next paragraph
+        $text = $text -replace '(?m)^(\d+)\\\.[ \t]*\n(?:[ \t]*\n)+(?=(?!#|>|\||<|MDSHIELD|[-*+](?:[ \t\u00A0]|$)|[-*_=]{3,}\s*$|\d+\\?[.)](?:[ \t\u00A0]|$))\S)', '$1. ' # A number alone on its line, with the item text in the next paragraph
         $text = $text -replace '(?m)^((?:[ \t]*>)*[ \t]*\d+)\\\.[ \t\u00A0]+', '$1. '
         $listStart = '^[ \t\u00A0>]*(?:[-*+]|\d+[.)])\s'
         $lines = $text -split "`n"
@@ -655,9 +683,9 @@ Function Repair-MarkdownEscapes {
             $before = if ($start -gt 0) { [string]$text[$start - 1] } else { '' }
             $afterIndex = $start + 2
             $after = if ($afterIndex -lt $text.Length) { [string]$text[$afterIndex] } else { '' }
-            $atLineStart = $prefix.Trim(" `t>").Length -eq 0
+            $atLineStart = $prefix -match '^[ \t>]*(?:(?:[-*+]|\d+[.)])[ \t\u00A0]+[ \t>]*)*$' # Also after a list marker
             if (',."''%@/?!=+-#>'.Contains($c)) {
-                $keep = ('=+-#>'.Contains($c) -and $atLineStart) -or ($c -eq '.' -and $prefix -match '^[ \t>]*\d+$') -or ($c -eq '!' -and $after -eq '[')
+                $keep = ('=+-#>'.Contains($c) -and $atLineStart) -or ($c -eq '.' -and $prefix -match '^[ \t>]*(?:(?:[-*+]|\d+[.)])[ \t\u00A0]+[ \t>]*)*\d+$') -or ($c -eq '!' -and $after -eq '[')
                 if (!$keep -and $c -eq '#') {
                     $lineEnd = $text.IndexOf([char]10, $start)
                     $line = if ($lineEnd -lt 0) { $text.Substring($lineStart) } else { $text.Substring($lineStart, $lineEnd - $lineStart) }
@@ -714,11 +742,12 @@ Function Add-MarkdownHardBreaks {
             "MDSHIELD$( $saved.Count - 1 )END"
         }
         $text = $Content -replace '\r\n', "`n"
-        $text = [regex]::Replace($text, '(?ms)(?:^[ \t]*)?(`{3,})[^\n`]*\n.*?^[ \t]*\1`*[ \t]*$', $shield)
+        $text = [regex]::Replace($text, '(?ms)(?:^[ \t]*)?(`{3,}|~{3,})[^\n`]*\n.*?^[ \t]*\1[`~]*[ \t]*$', $shield)
+        $text = Protect-IndentedCode -Text $text -Shield $shield
         $text = [regex]::Replace($text, '(`+)(?!`)(.+?)(?<!`)\1(?!`)', $shield)
 
         # Pandoc's line break (an odd number of backslashes at the end of a line, since a literal backslash is written as two) becomes two spaces
-        $text = $text -replace '(?m)(?<!\\)((?:\\\\)*)\\[ \t]*$(?=\n[^\n])', '$1  '
+        $text = $text -replace '(?m)(?:(?<=\S)[ \t]*\u00A0[ \t\u00A0]*)?(?<!\\)((?:\\\\)*)\\[ \t]*$(?=\n[^\n])', '$1  '
 
         # Every other line that is directly followed by another line of the same paragraph gets two spaces too
         $blank = " `t>$( [char]0x00A0 )"
@@ -809,8 +838,9 @@ Function Remove-PreviousNotebookOutput {
         return
     }
 
-    # Keep the docx folder, so that 'usedocx = 2' can still reuse its files
-    foreach ($item in @( Get-ChildItem -LiteralPath $notebookDirectory -Force | Where-Object { $_.Name -ne 'docx' } )) {
+    # Keep the docx folder, so that 'usedocx = 2' can still reuse its files, and everything whose name starts with a dot (e.g. '.git', '.obsidian').
+    # Everything else in the notebook's folder is removed, including files that were not created by this script.
+    foreach ($item in @( Get-ChildItem -LiteralPath $notebookDirectory -Force | Where-Object { $_.Name -ne 'docx' -and !$_.Name.StartsWith('.') } )) {
         "Removing previous output: $( $item.FullName )" | Write-Verbose
         if (! $DryRun) {
             # A non-Win32 path, so that Windows Powershell <= 5 can also remove files beyond the 260-character path limit
@@ -1369,6 +1399,33 @@ Function New-SectionGroupConversionConfig {
     }
 }
 
+# Target paths of the images moved during this run, so that two pages whose names are equal after cleaning don't overwrite each other's images
+$script:ImageTargetsInUse = @{}
+
+Function Get-UniqueImageName {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [string]
+        $MediaPath
+    ,
+        [Parameter(Mandatory)]
+        [string]
+        $Name
+    )
+
+    # E.g. the pages 'Meeting #1' and 'Meeting 1' both lead to 'Meeting-1-image1.png': number the later one
+    $baseName = [io.path]::GetFileNameWithoutExtension($Name)
+    $extension = [io.path]::GetExtension($Name)
+    $number = 1
+    while ($script:ImageTargetsInUse.ContainsKey([io.path]::combine( $MediaPath, $Name ).ToLowerInvariant())) {
+        $number++
+        $Name = "$baseName-$number$extension"
+    }
+    $script:ImageTargetsInUse[[io.path]::combine( $MediaPath, $Name ).ToLowerInvariant()] = $true
+    $Name
+}
+
 Function Convert-OneNotePage {
     [CmdletBinding(DefaultParameterSetName='default')]
     param (
@@ -1557,6 +1614,7 @@ Function Convert-OneNotePage {
                         }else {
                             "$( $pageCfg['pathFromRootCompat'] )-$($image.BaseName)$($image.Extension)"
                         } ) | Remove-InvalidFileNameCharsInsertedFiles
+                        $newimageName = Get-UniqueImageName -MediaPath $pageCfg['mediaPath'] -Name $newimageName
                         $newimagePath = [io.path]::combine( $pageCfg['mediaPath'], $newimageName )
                         "Moving image: $( $image.FullName ) to $( $newimagePath )" | Write-Verbose
                         if (!$config['dryRun']['value']) {
@@ -1703,6 +1761,7 @@ Function Convert-OneNote2MarkDown {
         $PSDefaultParameterValues['*:Encoding'] = 'utf8'
 
         $totalerr = @()
+        $script:ImageTargetsInUse = @{}
 
         # Validate dependencies
         Validate-Dependencies
